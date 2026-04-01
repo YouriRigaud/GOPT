@@ -19,8 +19,14 @@ Robotic object packing has broad practical applications in the logistics and aut
 
 ![overview](./images/overview.png)
 
-
 ## Installation
+
+### SETUP.md
+
+`SETUP.md` provides the complete instructions to train and test the model with python3.9 venv.
+
+### Original repo method
+
 This code has been tested on Ubuntu 20.04 with Cuda 12.1, Python3.9 and Pytorch 2.1.0.
 
 ```

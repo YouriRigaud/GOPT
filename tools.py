@@ -8,6 +8,7 @@ from distutils.util import strtobool
 import numpy as np
 import torch
 import torch.nn as nn
+from gymnasium.error import Error as GymError
 from gymnasium.envs.registration import register
 
 
@@ -34,10 +35,13 @@ def backup(time_str, args, upper_policy=None):
 
 
 def registration_envs():
-    register(
-        id='OnlinePack-v1',
-        entry_point='envs.Packing:PackingEnv',
-    )
+    try:
+        register(
+            id='OnlinePack-v1',
+            entry_point='envs.Packing:PackingEnv',
+        )
+    except GymError:
+        pass
     
 
 def load_policy(load_path, model, device="cpu"):

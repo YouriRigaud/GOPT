@@ -8,10 +8,10 @@ from .cutCreator import CuttingBoxCreator
 # from .mdCreator import MDlayerBoxCreator
 from .binCreator import RandomBoxCreator, LoadBoxCreator, BoxCreator
 
-from render import VTKRender
-
 
 class PackingEnv(gym.Env):
+    metadata = {"render_modes": ["human"], "render_fps": 30}
+
     def __init__(
         self,
         container_size=(10, 10, 10),
@@ -27,6 +27,7 @@ class PackingEnv(gym.Env):
         is_hold_on=False,
         **kwags
     ) -> None:
+        self.render_mode = "human" if is_render else None
         self.bin_size = container_size
         self.area = int(self.bin_size[0] * self.bin_size[1])
         # packing state
@@ -61,6 +62,13 @@ class PackingEnv(gym.Env):
 
         # for rendering
         if is_render:
+            try:
+                from render import VTKRender
+            except ModuleNotFoundError as exc:
+                raise ModuleNotFoundError(
+                    "Rendering requires the optional 'vtk' dependency. "
+                    "Install vtk to use is_render/--render."
+                ) from exc
             self.renderer = VTKRender(container_size, auto_render=not is_hold_on)
         self.render_box = None
         

@@ -37,28 +37,28 @@ from masked_a2c import MaskedA2CPolicy
 from mycollector import PackCollector
  
 
+def make_pack_env(args):
+    registration_envs()
+    return gym.make(
+        args.env.id,
+        container_size=args.env.container_size,
+        enable_rotation=args.env.rot,
+        data_type=args.env.box_type,
+        item_set=args.env.box_size_set,
+        reward_type=args.train.reward_type,
+        action_scheme=args.env.scheme,
+        k_placement=args.env.k_placement,
+    )
+
+
 def make_envs(args):
 
     train_envs = ts.env.SubprocVectorEnv(
-        [lambda: gym.make(args.env.id, 
-                          container_size=args.env.container_size,
-                          enable_rotation=args.env.rot,
-                          data_type=args.env.box_type,
-                          item_set=args.env.box_size_set, 
-                          reward_type=args.train.reward_type,
-                          action_scheme=args.env.scheme,
-                          k_placement=args.env.k_placement) 
+        [lambda: make_pack_env(args)
                           for _ in range(args.train.num_processes)]
     )
     test_envs = ts.env.SubprocVectorEnv(
-        [lambda: gym.make(args.env.id, 
-                          container_size=args.env.container_size,
-                          enable_rotation=args.env.rot,
-                          data_type=args.env.box_type,
-                          item_set=args.env.box_size_set, 
-                          reward_type=args.train.reward_type,
-                          action_scheme=args.env.scheme,
-                          k_placement=args.env.k_placement) 
+        [lambda: make_pack_env(args)
                           for _ in range(1)]
     )
     train_envs.seed(args.seed)

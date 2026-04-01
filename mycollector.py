@@ -205,7 +205,7 @@ class PackCollector(Collector):
                     )
                 )
 
-            if render:
+            if render is not None:
                 self.env.render()
                 if render > 0 and not np.isclose(render, 0):
                     time.sleep(render)

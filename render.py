@@ -73,7 +73,7 @@ class VTKRender:
             self, 
             container_size: List[int], 
             win_size: List[int]=[600, 600], 
-            offscreen: bool=True,
+            offscreen: bool=False,
             auto_render: bool=True
         ) -> None:
         self.container_size = container_size
@@ -86,8 +86,7 @@ class VTKRender:
 
         # 2. render window
         self.render_window = vtk.vtkRenderWindow()
-        # if offscreen:
-        #     self.render_window.SetOffScreenRendering(1)
+        self.render_window.SetOffScreenRendering(1 if offscreen else 0)
         self.render_window.SetWindowName("Packing Visualization")
         self.render_window.SetSize(win_size[0], win_size[1])
         self.render_window.AddRenderer(self.render)
@@ -114,7 +113,12 @@ class VTKRender:
 
         self.interactor.Initialize()
         self.render_window.Render()
+        self._process_events()
         time.sleep(0.5)
+
+    def _process_events(self) -> None:
+        if hasattr(self.interactor, "ProcessEvents"):
+            self.interactor.ProcessEvents()
 
     def _init_axes(self) -> None:
         axes = vtk.vtkAxesActor()
@@ -184,10 +188,12 @@ class VTKRender:
         self.render.AddActor(actor)
         time.sleep(0.5)
         self.render_window.Render()
+        self._process_events()
         
         time.sleep(0.3)
         actor.GetProperty().SetColor(colors.GetColor3d(vtk_color[color_0][color_1]))
         self.render_window.Render()
+        self._process_events()
         
         self.item_idx += 1
 

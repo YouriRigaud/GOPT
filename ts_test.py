@@ -73,7 +73,8 @@ def test(args):
     test_collector = PackCollector(policy, test_env)
 
     # Evaluation
-    result = test_collector.collect(n_episode=args.test_episode, render=args.render)
+    render_delay = 0.0 if args.render else None
+    result = test_collector.collect(n_episode=args.test_episode, render=render_delay)
     for i in range(args.test_episode):
         print(f"episode {i+1}\t => \tratio: {result['ratios'][i]:.4f} \t| total: {result['nums'][i]}")
     print('All cases have been done!')
