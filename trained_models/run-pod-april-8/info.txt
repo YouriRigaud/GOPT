@@ -1,0 +1,9 @@
+Trained on RTX3090, AMD EPYC 7763
+Stoped at epoch 750 ~19h
+Best model at epoch 599
+
+ts_test on best_model:
+average space utilization: 0.7437
+average put item number: 28.9240
+standard variance: 0.0753
+
