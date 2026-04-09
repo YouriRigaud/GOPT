@@ -11,6 +11,8 @@ def get_args():
     parser.add_argument('--config', type=str, default="cfg/config.yaml")
     parser.add_argument('--ckp', type=str, default=None, 
                         help="Path to the model to be tested")
+    parser.add_argument('--resume', type=str, default=None,
+                        help="Path to a training checkpoint to resume from")
     parser.add_argument('--no-cuda', action='store_true',
                         help='Cuda will be enabled by default')
     parser.add_argument('--device', type=int, default=0, 

@@ -37,6 +37,13 @@ from masked_a2c import MaskedA2CPolicy
 from mycollector import PackCollector
  
 
+def safe_copy(src, dst_dir):
+    dst = os.path.join(dst_dir, os.path.basename(src))
+    if os.path.abspath(src) == os.path.abspath(dst):
+        return
+    shutil.copy(src, dst)
+
+
 def make_pack_env(args):
     registration_envs()
     return gym.make(
@@ -175,7 +182,12 @@ def train(args):
     else:
         raise NotImplementedError
 
-    log_path = './logs/' + time_str
+    if args.resume:
+        if not os.path.isfile(args.resume):
+            raise FileNotFoundError(f"No checkpoint found at: {args.resume}")
+        log_path = os.path.dirname(os.path.abspath(args.resume))
+    else:
+        log_path = './logs/' + time_str
     
     is_debug = True if sys.gettrace() else False
     if not is_debug:
@@ -185,12 +197,25 @@ def train(args):
             train_interval=args.log_interval,
             update_interval=args.log_interval
         )
+        os.makedirs(log_path, exist_ok=True)
         # backup the config file, os.path.join(,)
-        shutil.copy(args.config, log_path)  # config file
-        shutil.copy("model.py", log_path)  # network
-        shutil.copy("arguments.py", log_path)  # network
+        safe_copy(args.config, log_path)
+        safe_copy("model.py", log_path)
+        safe_copy("arguments.py", log_path)
     else:
         logger = LazyLogger()
+
+    if args.resume:
+        checkpoint = torch.load(args.resume, map_location=device)
+        policy.load_state_dict(checkpoint["model"])
+        optim.load_state_dict(checkpoint["optim"])
+        if lr_scheduler is not None and "lr_scheduler" in checkpoint:
+            lr_scheduler.load_state_dict(checkpoint["lr_scheduler"])
+        elif lr_scheduler is not None:
+            warnings.warn(
+                "Checkpoint has no lr_scheduler state; resuming without restoring "
+                "the scheduler state."
+            )
 
     # ======== callback functions used during training =========
     def train_fn(epoch, env_step):
@@ -213,7 +238,13 @@ def train(args):
             ckpt_path = os.path.join(log_path, "checkpoint.pth")
             # Example: saving by epoch num
             # ckpt_path = os.path.join(log_path, f"checkpoint_{epoch}.pth")
-            torch.save({"model": policy.state_dict(), "optim": optim.state_dict()}, ckpt_path)
+            state = {
+                "model": policy.state_dict(),
+                "optim": optim.state_dict(),
+            }
+            if lr_scheduler is not None:
+                state["lr_scheduler"] = lr_scheduler.state_dict()
+            torch.save(state, ckpt_path)
             return ckpt_path
         else:
             return None
@@ -251,6 +282,7 @@ def train(args):
         train_fn=train_fn,
         save_best_fn=save_best_fn,
         save_checkpoint_fn=save_checkpoint_fn,
+        resume_from_log=bool(args.resume),
         logger=logger,
         test_in_train=False
     )
