@@ -27,7 +27,7 @@ import tianshou as ts
 from tianshou.utils import TensorboardLogger, LazyLogger
 from tianshou.data import VectorReplayBuffer
 from tianshou.utils.net.common import ActorCritic, DataParallelNet
-from tianshou.trainer import onpolicy_trainer
+from tianshou.trainer import onpolicy_trainer_iter
 
 import model
 import arguments
@@ -42,6 +42,32 @@ def safe_copy(src, dst_dir):
     if os.path.abspath(src) == os.path.abspath(dst):
         return
     shutil.copy(src, dst)
+
+
+def format_epoch_log(epoch, epoch_stat):
+    return (
+        f"epoch={epoch} "
+        f"env_step={epoch_stat['env_step']} "
+        f"gradient_step={epoch_stat['gradient_step']} "
+        f"train_rew={epoch_stat['rew']:.6f} "
+        f"train_len={epoch_stat['len']} "
+        f"n_ep={epoch_stat['n/ep']} "
+        f"n_st={epoch_stat['n/st']} "
+        f"loss={epoch_stat['loss']:.6f} "
+        f"loss_clip={epoch_stat['loss/clip']:.6f} "
+        f"loss_ent={epoch_stat['loss/ent']:.6f} "
+        f"loss_vf={epoch_stat['loss/vf']:.6f} "
+        f"test_reward={epoch_stat['test_reward']:.6f} "
+        f"test_reward_std={epoch_stat['test_reward_std']:.6f} "
+        f"best_reward={epoch_stat['best_reward']:.6f} "
+        f"best_reward_std={epoch_stat['best_reward_std']:.6f} "
+        f"best_epoch={epoch_stat['best_epoch']}"
+    )
+
+
+def append_train_log(train_log_path, line):
+    with open(train_log_path, "a") as file:
+        file.write(line + "\n")
 
 
 def make_pack_env(args):
@@ -188,6 +214,7 @@ def train(args):
         log_path = os.path.dirname(os.path.abspath(args.resume))
     else:
         log_path = './logs/' + time_str
+    train_log_path = os.path.join(log_path, "train.log")
     
     is_debug = True if sys.gettrace() else False
     if not is_debug:
@@ -260,6 +287,11 @@ def train(args):
         ratio_std = result["ratio_std"]
         total = result["num"]
         print(f"The result (over {result['n/ep']} episodes): ratio={ratio}, ratio_std={ratio_std}, total={total}")
+        append_train_log(
+            train_log_path,
+            f"final_test episodes={result['n/ep']} ratio={ratio:.6f} "
+            f"ratio_std={ratio_std:.6f} total={total:.6f}"
+        )
         with open(os.path.join(log_path, f"{ratio:.4f}_{ratio_std:.4f}_{total}.txt"), "w") as file:
             file.write(str(train_info).replace("{", "").replace("}", "").replace(", ", "\n"))
 
@@ -268,7 +300,7 @@ def train(args):
     test_collector = PackCollector(policy, test_envs)
     
     # trainer
-    result = onpolicy_trainer(
+    trainer = onpolicy_trainer_iter(
         policy,
         train_collector,
         test_collector,
@@ -286,6 +318,10 @@ def train(args):
         logger=logger,
         test_in_train=False
     )
+    result = {}
+    for epoch, epoch_stat, info in trainer:
+        append_train_log(train_log_path, format_epoch_log(epoch, epoch_stat))
+        result = info
 
     final_save_fn(policy)
     pprint.pprint(f'Finished training! \n{result}')
