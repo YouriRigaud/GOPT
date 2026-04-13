@@ -312,6 +312,23 @@ class Container(object):
         cz = sum((b.pos_z + b.size_z / 2.0) * b.weight for b in self.boxes) / total_weight
         return (cx, cy, cz)
 
+    def has_fragility_violation(self) -> bool:
+        """Return True if any fragile box has another box resting on top of it."""
+        for b_frag in self.boxes:
+            if b_frag.fragility == 0:
+                continue
+            top_z = b_frag.pos_z + b_frag.size_z
+            for b in self.boxes:
+                if b is b_frag:
+                    continue
+                if (b.pos_z == top_z and
+                        b.pos_x < b_frag.pos_x + b_frag.size_x and
+                        b.pos_x + b.size_x > b_frag.pos_x and
+                        b.pos_y < b_frag.pos_y + b_frag.size_y and
+                        b.pos_y + b.size_y > b_frag.pos_y):
+                    return True
+        return False
+
     def get_volume_ratio(self):
         vo = reduce(lambda x, y: x + y, [box.size_x * box.size_y * box.size_z for box in self.boxes], 0.0)
         mx = self.dimension[0] * self.dimension[1] * self.dimension[2]
