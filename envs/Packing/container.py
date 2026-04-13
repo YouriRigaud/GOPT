@@ -300,6 +300,18 @@ class Container(object):
 
             return hull_path.contains_point(obj_center)
 
+    def get_cog(self):
+        """Return the weight-weighted center of gravity (cx, cy, cz) of packed items.
+        Returns the bin center when no boxes are placed yet.
+        """
+        if not self.boxes:
+            return (self.dimension[0] / 2.0, self.dimension[1] / 2.0, self.dimension[2] / 2.0)
+        total_weight = sum(b.weight for b in self.boxes)
+        cx = sum((b.pos_x + b.size_x / 2.0) * b.weight for b in self.boxes) / total_weight
+        cy = sum((b.pos_y + b.size_y / 2.0) * b.weight for b in self.boxes) / total_weight
+        cz = sum((b.pos_z + b.size_z / 2.0) * b.weight for b in self.boxes) / total_weight
+        return (cx, cy, cz)
+
     def get_volume_ratio(self):
         vo = reduce(lambda x, y: x + y, [box.size_x * box.size_y * box.size_z for box in self.boxes], 0.0)
         mx = self.dimension[0] * self.dimension[1] * self.dimension[2]
@@ -341,10 +353,12 @@ class Container(object):
             size_x = box_size[1]
             size_y = box_size[0]
         size_z = box_size[2]
+        weight = box_size[3] if len(box_size) > 3 else 1.0
+        fragility = int(box_size[4]) if len(box_size) > 4 else 0
         plain = self.heightmap
         new_h = self.check_box([size_x, size_y, size_z], [pos[0], pos[1]])
         if new_h != -1:
-            self.boxes.append(Box(size_x, size_y, size_z, pos[0], pos[1], pos[2]))  # record rotated box
+            self.boxes.append(Box(size_x, size_y, size_z, pos[0], pos[1], pos[2], weight, fragility))
             self.rot_flags.append(rot_flag)
             self.heightmap = self.update_heightmap(plain, self.boxes[-1])
             self.height = max(self.height, pos[2] + size_z)
@@ -566,7 +580,7 @@ class Container(object):
             for id, ems in enumerate(candidates):
                 if self.check_box_ems(rotated_box, ems) > -1:
                     mask[1, id] = 1
-        
+
         self.candidates = candidates
         return np.array(candidates), mask
 

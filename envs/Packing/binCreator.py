@@ -34,16 +34,30 @@ class RandomBoxCreator(BoxCreator):
             for k in range(4):
                 default_box_set.append((2 + i, 2 + j, 2 + k))
 
-    def __init__(self, box_size_set=None):
+    def __init__(
+        self,
+        box_size_set=None,
+        use_weight=False,
+        weight_range=(0.5, 5.0),
+        use_fragility=False,
+        fragility_probability=0.3,
+    ):
         super().__init__()
         self.box_set = box_size_set
         if self.box_set is None:
             self.box_set = RandomBoxCreator.default_box_set
-        # print(self.box_set)
+        self.use_weight = use_weight
+        self.weight_range = weight_range
+        self.use_fragility = use_fragility
+        self.fragility_probability = fragility_probability
 
     def generate_box_size(self, **kwargs):
         idx = np.random.randint(0, len(self.box_set))
-        self.box_list.append(self.box_set[idx])
+        l, w, h = self.box_set[idx][:3]
+        # TODO: consider alternative weight distributions (ex: correlated with volume)
+        weight = float(np.random.uniform(*self.weight_range)) if self.use_weight else 1.0
+        fragility = int(np.random.rand() < self.fragility_probability) if self.use_fragility else 0
+        self.box_list.append((l, w, h, weight, fragility))
 
 
 # load data

@@ -15,8 +15,8 @@ class PackingEnv(gym.Env):
     def __init__(
         self,
         container_size=(10, 10, 10),
-        item_set=None, 
-        data_name=None, 
+        item_set=None,
+        data_name=None,
         load_test_data=False,
         enable_rotation=False,
         data_type="random",
@@ -25,6 +25,10 @@ class PackingEnv(gym.Env):
         k_placement=100,
         is_render=False,
         is_hold_on=False,
+        use_weight=False,
+        weight_range=(0.5, 5.0),
+        use_fragility=False,
+        fragility_probability=0.3,
         **kwags
     ) -> None:
         self.render_mode = "human" if is_render else None
@@ -36,6 +40,8 @@ class PackingEnv(gym.Env):
         self.reward_type = reward_type
         self.action_scheme = action_scheme
         self.k_placement = k_placement
+        self.use_weight = use_weight
+        self.use_fragility = use_fragility
         if action_scheme == "EMS":
             self.candidates = np.zeros((self.k_placement, 6), dtype=np.int32)  # (x1, y1, z1, x2, y2, H)
         else:
@@ -46,7 +52,13 @@ class PackingEnv(gym.Env):
             assert item_set is not None
             if data_type == "random":
                 print(f"using items generated randomly")
-                self.box_creator = RandomBoxCreator(item_set)  
+                self.box_creator = RandomBoxCreator(
+                    item_set,
+                    use_weight=use_weight,
+                    weight_range=weight_range,
+                    use_fragility=use_fragility,
+                    fragility_probability=fragility_probability,
+                )
             if data_type == "cut":
                 print(f"using items generated through cutting method")
                 low = list(item_set[0])
@@ -75,7 +87,7 @@ class PackingEnv(gym.Env):
         self._set_space()
 
     def _set_space(self) -> None:
-        obs_len = self.area + 3  # the state of bin + the dimension of box (l, w, h)
+        obs_len = self.area + 6  # heightmap + next item (l,w,h) × 2 rotations
         obs_len += self.k_placement * 6
         self.action_space = spaces.Discrete(self.k_placement)
         self.observation_space = spaces.Dict(
@@ -104,7 +116,7 @@ class PackingEnv(gym.Env):
             get current observation and action mask
         """
         hmap = self.container.heightmap
-        size = list(self.next_box)
+        size = list(self.next_box[:3])  # only l, w, h — weight/fragility not in obs
         placements, mask = self.get_possible_position(size)
         self.candidates = np.zeros_like(self.candidates)
         if len(placements) != 0:
@@ -186,7 +198,12 @@ class PackingEnv(gym.Env):
             done = True
             
             self.render_box = [[0, 0, 0], [0, 0, 0]]
-            info = {'counter': len(self.container.boxes), 'ratio': self.container.get_volume_ratio()}
+            info = {
+                'counter': len(self.container.boxes),
+                'ratio': self.container.get_volume_ratio(),
+                'cog': np.array(self.container.get_cog(), dtype=np.float32),
+                'fragility_violated': int(self.container.has_fragility_violation()),
+            }
             return self.cur_observation, reward, done, False, info
 
         box_ratio = self.get_box_ratio()
@@ -199,7 +216,12 @@ class PackingEnv(gym.Env):
         else:
             reward = box_ratio
         done = False
-        info = {'counter': len(self.container.boxes), 'ratio': self.container.get_volume_ratio()}
+        info = {
+            'counter': len(self.container.boxes),
+            'ratio': self.container.get_volume_ratio(),
+            'cog': np.array(self.container.get_cog(), dtype=np.float32),
+            'fragility_violated': int(self.container.has_fragility_violation()),
+        }
 
         return self.cur_observation, reward, done, False, info
 

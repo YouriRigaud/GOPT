@@ -141,6 +141,8 @@ class PackCollector(Collector):
         episode_start_indices = []
         episode_ratios = []
         episode_nums = []
+        episode_cogs = []
+        episode_fragility_violated = []
 
         while True:
             assert len(self.data) == len(ready_env_ids)
@@ -228,6 +230,8 @@ class PackCollector(Collector):
 
                 episode_ratios.append(self.data.info['ratio'][env_ind_local])
                 episode_nums.append(self.data.info['counter'][env_ind_local])
+                episode_cogs.append(self.data.info['cog'][env_ind_local])
+                episode_fragility_violated.append(self.data.info['fragility_violated'][env_ind_local])
                 # now we copy obs_next to obs, but since there might be
                 # finished episodes, we have to reset finished envs first.
                 self._reset_env_with_ids(
@@ -272,16 +276,18 @@ class PackCollector(Collector):
             self.reset_env()
 
         if episode_count > 0:
-            rews, lens, idxs, ratios, nums = list(
+            rews, lens, idxs, ratios, nums, cogs, fragility_violated = list(
                 map(
                     np.concatenate,
-                    [episode_rews, episode_lens, episode_start_indices, episode_ratios, episode_nums]
+                    [episode_rews, episode_lens, episode_start_indices, episode_ratios, episode_nums, episode_cogs, episode_fragility_violated]
                 )
             )
             rew_mean, rew_std = rews.mean(), rews.std()
             len_mean, len_std = lens.mean(), lens.std()
             ratio_mean, ratio_std = ratios.mean(), ratios.std()
             num_mean, num_std = nums.mean(), nums.std()
+            cog_mean = cogs.mean(axis=0)  # (3,) mean over episodes
+            fragility_violated_rate = fragility_violated.mean()
         else:
             rews, lens, idxs = np.array([]), np.array([], int), np.array([], int)
             rew_mean = rew_std = len_mean = len_std = 0
@@ -289,6 +295,10 @@ class PackCollector(Collector):
             nums = np.array([])
             ratio_mean = ratio_std = 0
             num_mean = num_std = 0
+            cogs = np.zeros((0, 3), dtype=np.float32)
+            cog_mean = np.zeros(3, dtype=np.float32)
+            fragility_violated = np.array([])
+            fragility_violated_rate = 0.0
 
         return {
             "n/ep": episode_count,
@@ -306,4 +316,8 @@ class PackCollector(Collector):
             "nums": nums,
             "num": num_mean,
             "num_std": num_std,
+            "cogs": cogs,
+            "cog": cog_mean,
+            "fragility_violated": fragility_violated,
+            "fragility_violated_rate": fragility_violated_rate,
         }

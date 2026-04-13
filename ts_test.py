@@ -27,16 +27,21 @@ def test(args):
     set_seed(args.seed, args.cuda, args.cuda_deterministic)
 
     # environment
+    constraints = args.get("constraints", None)
     test_env = gym.make(
-        args.env.id, 
+        args.env.id,
         container_size=args.env.container_size,
         enable_rotation=args.env.rot,
         data_type=args.env.box_type,
-        item_set=args.env.box_size_set, 
+        item_set=args.env.box_size_set,
         reward_type=args.train.reward_type,
         action_scheme=args.env.scheme,
         k_placement=args.env.k_placement,
-        is_render=args.render
+        is_render=args.render,
+        use_weight=constraints.weight if constraints else False,
+        weight_range=list(constraints.weight_range) if constraints else [0.5, 5.0],
+        use_fragility=constraints.fragility if constraints else False,
+        fragility_probability=constraints.fragility_probability if constraints else 0.3,
     )
 
     # network
@@ -75,13 +80,21 @@ def test(args):
     # Evaluation
     render_delay = 0.0 if args.render else None
     result = test_collector.collect(n_episode=args.test_episode, render=render_delay)
+    has_cog = result['cogs'].shape[0] > 0
     for i in range(args.test_episode):
-        print(f"episode {i+1}\t => \tratio: {result['ratios'][i]:.4f} \t| total: {result['nums'][i]}")
+        cog = result['cogs'][i] if has_cog else None
+        frag = int(result['fragility_violated'][i]) if has_cog else '-'
+        cog_str = f"cog=({cog[0]:.2f},{cog[1]:.2f},{cog[2]:.2f})" if cog is not None else ""
+        print(f"episode {i+1}\t => \tratio: {result['ratios'][i]:.4f} \t| total: {result['nums'][i]} \t| {cog_str} \t| fragility_violated: {frag}")
     print('All cases have been done!')
     print('----------------------------------------------')
     print('average space utilization: %.4f'%(result['ratio']))
     print('average put item number: %.4f'%(result['num']))
     print("standard variance: %.4f"%(result['ratio_std']))
+    if has_cog:
+        cog = result['cog']
+        print(f"average cog: ({cog[0]:.4f}, {cog[1]:.4f}, {cog[2]:.4f})")
+        print(f"fragility violation rate: {result['fragility_violated_rate']:.4f}")
 
 
 if __name__ == '__main__':
