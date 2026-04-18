@@ -1,4 +1,5 @@
 # smoke-test configuration for CPU-only setup verification
+# Now with fragility + weight constraints enabled for testing
 
 seed: 5
 cuda_deterministic: True
@@ -45,3 +46,9 @@ model:
   num_layers: 3
   forward_expansion: 2
   dropout: 0
+
+constraints:
+  weight: true
+  weight_range: [0.5, 5.0]
+  fragility: true
+  fragility_probability: 0.3

@@ -375,10 +375,10 @@ class Container(object):
         plain = self.heightmap
         new_h = self.check_box([size_x, size_y, size_z], [pos[0], pos[1]])
         if new_h != -1:
-            self.boxes.append(Box(size_x, size_y, size_z, pos[0], pos[1], pos[2], weight, fragility))
+            self.boxes.append(Box(size_x, size_y, size_z, pos[0], pos[1], new_h, weight, fragility))
             self.rot_flags.append(rot_flag)
             self.heightmap = self.update_heightmap(plain, self.boxes[-1])
-            self.height = max(self.height, pos[2] + size_z)
+            self.height = max(self.height, new_h + size_z)
             return True
         return False
 
@@ -561,7 +561,54 @@ class Container(object):
 
         self.candidates = candidates
         return np.array(candidates), mask
-    
+
+    def _get_invalid_ems_indices(self, candidates: list) -> set:
+        """
+        Identify which EMS indices should be invalidated due to fragile objects.
+
+        An EMS is invalid (above a fragile object) if:
+        1. Its bottom-z is >= the fragile object's top-z
+        2. Their XY regions overlap
+
+        Args:
+            candidates: list of EMSs, each [x_min, y_min, z_min, x_max, y_max, z_max]
+
+        Returns:
+            set of indices in candidates that should be invalidated
+        """
+        invalid_indices = set()
+
+        # Find all fragile boxes
+        fragile_boxes = [b for b in self.boxes if b.fragility == 1]
+
+        if not fragile_boxes:
+            return invalid_indices
+
+        # For each candidate EMS
+        for ems_idx, ems in enumerate(candidates):
+            ems_x_min, ems_y_min, ems_z_min, ems_x_max, ems_y_max, ems_z_max = ems
+
+            # Check against each fragile box
+            for frag_box in fragile_boxes:
+                box_x_min = frag_box.pos_x
+                box_y_min = frag_box.pos_y
+                box_x_max = frag_box.pos_x + frag_box.size_x
+                box_y_max = frag_box.pos_y + frag_box.size_y
+                box_z_top = frag_box.pos_z + frag_box.size_z
+
+                # Check if EMS is above the fragile box
+                is_above_z = ems_z_min >= box_z_top
+
+                # Check if XY regions overlap
+                xy_overlap = (ems_x_min < box_x_max and ems_x_max > box_x_min and
+                              ems_y_min < box_y_max and ems_y_max > box_y_min)
+
+                if is_above_z and xy_overlap:
+                    invalid_indices.add(ems_idx)
+                    break  # Mark as invalid and move to next EMS
+
+        return invalid_indices
+
     def candidate_from_EMS(self, 
         next_box, 
         max_n
@@ -597,6 +644,11 @@ class Container(object):
             for id, ems in enumerate(candidates):
                 if self.check_box_ems(rotated_box, ems) > -1:
                     mask[1, id] = 1
+
+        # Invalidate EMSs that are above fragile objects
+        invalid_ems_indices = self._get_invalid_ems_indices(candidates)
+        for idx in invalid_ems_indices:
+            mask[:, idx] = 0
 
         self.candidates = candidates
         return np.array(candidates), mask

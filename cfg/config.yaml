@@ -1,4 +1,5 @@
 # configuration file for training
+# Extended with fragility and weight constraints
 
 seed: 5
 cuda_deterministic: True
@@ -10,9 +11,9 @@ env:
   rot: True
   box_type: random              # random, cut
   container_size: [10, 10, 10]
-  step:           
+  step:
   k_placement: 80              # number of candidate placements
-  
+
 
 train:
   algo: PPO
@@ -20,8 +21,8 @@ train:
   num_processes: 128    # the number of subprogresses, if debug, set to 1
   num_steps: 5
   epoch: 1000
-  last_epoch: 200  
-  batch_size: 128  
+  last_epoch: 200
+  batch_size: 128
   step_per_epoch: 40000        # 2**15
   repeat_per_collect: 1
   gae_lambda: 0.96
@@ -34,7 +35,7 @@ opt:  # optimizer
   lr_decay: True               # use a linear schedule on the learning rate
   eps: 1e-5                    # epsilon (default: 1e-5)
   alpha: 0.99                  # RMSprop alpha (default: 0.99)
-  
+
 loss:
   entropy: 0.001               # entropy term coefficient (default: 0.01)
   value: 0.5                   # value loss coefficient (default: 0.5)
@@ -47,3 +48,8 @@ model:
   forward_expansion: 2
   dropout: 0
 
+constraints:
+  weight: true                  # enable per-item weight
+  weight_range: [0.5, 5.0]     # [min, max] uniform weight sampling
+  fragility: true               # enable per-item fragility (binary: 0=normal, 1=fragile)
+  fragility_probability: 0.3   # probability that a generated item is fragile
