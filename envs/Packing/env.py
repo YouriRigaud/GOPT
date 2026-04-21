@@ -113,23 +113,27 @@ class PackingEnv(gym.Env):
     @property
     def cur_observation(self):
         """
-            get current observation and action mask
+        Get current observation and action mask.
         """
         hmap = self.container.heightmap
         size = list(self.next_box[:3])  # only l, w, h — weight/fragility not in obs
         placements, mask = self.get_possible_position(size)
         self.candidates = np.zeros_like(self.candidates)
         if len(placements) != 0:
-            # print("candidates:")
-            # for c in placements:
-            #     print(c)
             self.candidates[0:len(placements)] = placements
 
         size.extend([size[1], size[0], size[2]])
-        obs = np.concatenate((hmap.reshape(-1), np.array(size).reshape(-1), self.candidates.reshape(-1)))
+
+        # Concatenate all observation components
+        obs = np.concatenate((
+            hmap.reshape(-1),
+            np.array(size).reshape(-1),
+            self.candidates.reshape(-1)
+        ))
+
         mask = mask.reshape(-1)
         return {
-            "obs": obs, 
+            "obs": obs,
             "mask": mask
         }
 
