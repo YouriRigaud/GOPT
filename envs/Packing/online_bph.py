@@ -26,6 +26,26 @@ def _item_dims(item: Any) -> Tuple[float, float, float]:
     return float(length), float(width), float(height)
 
 
+def _item_weight(item: Any) -> float:
+    """Return item weight — index 3 if tuple/list, else .weight attribute, default 1.0."""
+    if hasattr(item, "weight"):
+        return float(item.weight)
+    try:
+        return float(item[3])
+    except (IndexError, TypeError):
+        return 1.0
+
+
+def _item_fragility(item: Any) -> bool:
+    """Return True if item is fragile — index 4 if tuple/list, else .fragility attribute."""
+    if hasattr(item, "fragility"):
+        return bool(item.fragility)
+    try:
+        return bool(item[4])
+    except (IndexError, TypeError):
+        return False
+
+
 def _item_volume(item: Any) -> float:
     length, width, height = _item_dims(item)
     return length * width * height
@@ -103,12 +123,14 @@ class OnlineBPHContainer:
         self.width  = width    # y dimension
         self.height = height   # z dimension
 
-        # Each entry: (original_dims, rotation_dims, position)
+        # Each entry: (original_dims, rotation_dims, position, weight, fragility)
         self.placed_items: List[
             Tuple[
-                Tuple[float, float, float],
-                Tuple[float, float, float],
-                Tuple[float, float, float],
+                Tuple[float, float, float],  # original dims
+                Tuple[float, float, float],  # rotation dims
+                Tuple[float, float, float],  # position (x, y, z)
+                float,                       # weight
+                bool,                        # fragile
             ]
         ] = []
 
@@ -131,6 +153,8 @@ class OnlineBPHContainer:
         item_dims: Tuple[float, float, float],
         rotation_dims: Tuple[float, float, float],
         ems: EMS,
+        weight: float = 1.0,
+        fragile: bool = False,
     ) -> Tuple[bool, Optional[Tuple[float, float, float]]]:
         """
         Place item at the min_corner of *ems* and update the EMS list.
@@ -141,18 +165,123 @@ class OnlineBPHContainer:
             return False, None
 
         item_pos = ems.min_corner
-        self.placed_items.append((item_dims, rotation_dims, item_pos))
+        self.placed_items.append((item_dims, rotation_dims, item_pos, weight, fragile))
         self._update_ems_difference(rotation_dims, item_pos)
         return True, item_pos
 
     def get_volume_utilization(self) -> float:
         """Volume utilisation ratio in [0, 1]."""
         placed_volume = sum(
-            _dims_volume(rotation_dims)
-            for _, rotation_dims, _ in self.placed_items
+            _dims_volume(entry[1])   # entry[1] = rotation_dims
+            for entry in self.placed_items
         )
         container_volume = self.length * self.width * self.height
         return placed_volume / container_volume if container_volume > 0 else 0.0
+
+    # ------------------------------------------------------------------
+    # Fragility constraint helpers
+    # ------------------------------------------------------------------
+
+    def has_fragile_item_at(self, pos: Tuple[float, float, float],
+                             dims: Tuple[float, float, float]) -> bool:
+        """
+        Return True if any fragile item already placed in this container
+        would be directly below the footprint of a new item placed at *pos*
+        with *dims* (l, w, h).
+
+        A fragile item is "below" the new item if their footprints overlap
+        in x-y AND the fragile item's top face (z + h_frag) equals the new
+        item's bottom face (z_new).  We allow a small tolerance.
+        """
+        nx, ny, nz = pos
+        nl, nw, _  = dims
+
+        for entry in self.placed_items:
+            _, rot_dims, fpos, _, fragile = entry
+            if not fragile:
+                continue
+            fx, fy, fz = fpos
+            fl, fw, fh = rot_dims
+            # Check z: fragile item's top must touch new item's bottom
+            if abs((fz + fh) - nz) > _EPS:
+                continue
+            # Check x-y footprint overlap
+            x_overlap = fx < nx + nl - _EPS and fx + fl > nx + _EPS
+            y_overlap = fy < ny + nw - _EPS and fy + fw > ny + _EPS
+            if x_overlap and y_overlap:
+                return True
+        return False
+
+    # ------------------------------------------------------------------
+    # Centre-of-gravity helpers
+    # ------------------------------------------------------------------
+
+    def compute_cog(self) -> Tuple[float, float, float]:
+        """
+        Compute the current centre of gravity of all placed items.
+        Uses item weight (entry[3]) and geometric centre of each item.
+        Returns (cx, cy, cz).  Returns container centre if no items placed.
+        """
+        if not self.placed_items:
+            return (self.length / 2, self.width / 2, self.height / 2)
+
+        total_weight = 0.0
+        wx_sum = wy_sum = wz_sum = 0.0
+        for entry in self.placed_items:
+            _, rot_dims, pos, weight, _ = entry
+            l, w, h = rot_dims
+            cx = pos[0] + l / 2
+            cy = pos[1] + w / 2
+            cz = pos[2] + h / 2
+            wx_sum += weight * cx
+            wy_sum += weight * cy
+            wz_sum += weight * cz
+            total_weight += weight
+
+        return (wx_sum / total_weight,
+                wy_sum / total_weight,
+                wz_sum / total_weight)
+
+    def cog_distance_to_center(self) -> float:
+        """
+        Euclidean distance of the current CoG from the geometric centre
+        of the container floor plan (x-y plane only, ignoring z).
+        Using x-y only is standard practice for load balance.
+        """
+        cx, cy, _ = self.compute_cog()
+        return float(np.sqrt((cx - self.length / 2) ** 2 +
+                              (cy - self.width  / 2) ** 2))
+
+    def simulated_cog_distance(
+        self,
+        rotation_dims: Tuple[float, float, float],
+        pos: Tuple[float, float, float],
+        weight: float,
+    ) -> float:
+        """
+        Compute CoG distance to container centre *as if* an item with
+        *rotation_dims*, *pos*, *weight* were added — without mutating state.
+        Used as a tiebreaker in placement selection.
+        """
+        total_weight = weight
+        l, w, h = rotation_dims
+        wx_sum = weight * (pos[0] + l / 2)
+        wy_sum = weight * (pos[1] + w / 2)
+
+        for entry in self.placed_items:
+            _, rot_dims, epos, ew, _ = entry
+            el, ew_dim, _ = rot_dims
+            wx_sum += ew * (epos[0] + el / 2)
+            wy_sum += ew * (epos[1] + ew_dim / 2)
+            total_weight += ew
+
+        if total_weight < _EPS:
+            return 0.0
+
+        cx = wx_sum / total_weight
+        cy = wy_sum / total_weight
+        return float(np.sqrt((cx - self.length / 2) ** 2 +
+                              (cy - self.width  / 2) ** 2))
 
     def is_empty(self) -> bool:
         return len(self.placed_items) == 0
@@ -406,7 +535,11 @@ class OnlineBPH:
 
         if best is not None:
             container, _, rotation_dims, ems = best
-            success, _ = container.place_item(_item_dims(item), rotation_dims, ems)
+            success, _ = container.place_item(
+                _item_dims(item), rotation_dims, ems,
+                weight=_item_weight(item),
+                fragile=_item_fragility(item),
+            )
             return success
 
         # Open a new container
@@ -447,7 +580,11 @@ class OnlineBPH:
 
             if best_global is not None and best_item is not None:
                 container, _, rotation_dims, ems = best_global
-                container.place_item(_item_dims(best_item), rotation_dims, ems)
+                container.place_item(
+                    _item_dims(best_item), rotation_dims, ems,
+                    weight=_item_weight(best_item),
+                    fragile=_item_fragility(best_item),
+                )
                 items.remove(best_item)
             else:
                 # No item fits in any open container — open a new one for the first item
@@ -466,43 +603,65 @@ class OnlineBPH:
         Find the best tetrad (container, item, rotation, ems) for the given
         list of items across all open containers.
 
+        Feasibility constraints
+        -----------------------
+        1. Blocking check   : EMS must reach the container door (x_max == L).
+        2. Fragility check  : new item must NOT be placed on top of a fragile item.
+
+        Scoring (lexicographic)
+        -----------------------
+        1. Fill ratio       : item_volume / ems_volume  — higher is better.
+        2. Margin           : sum of leftover space per axis — lower is better.
+        3. CoG distance     : simulated distance of CoG to container centre
+                              after adding this item — lower is better.
+
         Returns (container, item, rotation_dims, ems) or None.
         """
-        best_container    = None
-        best_item         = None
-        best_rotation     = None
-        best_ems          = None
-        best_fill_ratio   = 0.0
-        best_margin       = float("inf")
+        best_container  = None
+        best_item       = None
+        best_rotation   = None
+        best_ems        = None
+        # Score tuple: (fill_ratio, -margin, -cog_dist)  — maximise
+        best_score: Tuple[float, float, float] = (-1.0, -float("inf"), -float("inf"))
 
         for container in containers:
             sorted_ems = container.get_sorted_ems(self.ke)
 
             for ems in sorted_ems:
-                # --- Blocking check (Section 3.1) -----------------------
-                # The EMS must extend to the container door (x_max == L).
+                # --- 1. Blocking check (Section 3.1) --------------------
                 if abs(ems.max_corner[0] - container.length) > _EPS:
                     continue
 
+                pos = ems.min_corner   # item placed at EMS min_corner
+
                 for item in items:
+                    weight = _item_weight(item)
+
                     for rotation_dims in _item_rotations(item):
                         if not ems.fits(rotation_dims):
                             continue
 
+                        # --- 2. Fragility constraint --------------------
+                        # Reject if any fragile item is directly below
+                        if container.has_fragile_item_at(pos, rotation_dims):
+                            continue
+
+                        # --- 3. Scoring ---------------------------------
                         fill_ratio = _item_volume(item) / ems.volume
                         margin     = sum(
                             ems.dimensions[i] - rotation_dims[i] for i in range(3)
                         )
+                        cog_dist   = container.simulated_cog_distance(
+                            rotation_dims, pos, weight
+                        )
+                        score = (fill_ratio, -margin, -cog_dist)
 
-                        if (fill_ratio > best_fill_ratio + _EPS or
-                                (abs(fill_ratio - best_fill_ratio) < _EPS
-                                 and margin < best_margin - _EPS)):
+                        if score > best_score:
+                            best_score      = score
                             best_container  = container
                             best_item       = item
                             best_rotation   = rotation_dims
                             best_ems        = ems
-                            best_fill_ratio = fill_ratio
-                            best_margin     = margin
 
         if best_container is None:
             return None
@@ -546,5 +705,9 @@ class OnlineBPH:
         self.open_containers.append(new_container)
 
         ems = new_container.ems_list[0]  # full-container EMS
-        success, _ = new_container.place_item(_item_dims(item), best_rotation, ems)
+        success, _ = new_container.place_item(
+            _item_dims(item), best_rotation, ems,
+            weight=_item_weight(item),
+            fragile=_item_fragility(item),
+        )
         return success
