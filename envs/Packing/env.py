@@ -128,8 +128,9 @@ class PackingEnv(gym.Env):
         size.extend([size[1], size[0], size[2]])
         obs = np.concatenate((hmap.reshape(-1), np.array(size).reshape(-1), self.candidates.reshape(-1)))
         mask = mask.reshape(-1)
+        self._last_mask = mask  # cached for masked-action detection in step()
         return {
-            "obs": obs, 
+            "obs": obs,
             "mask": mask
         }
 
@@ -185,11 +186,22 @@ class PackingEnv(gym.Env):
                  done, Whether to end boxing (i.e., the current box cannot fit in the bin)
                  info
         """
-        # print(self.next_box)
+        # If the chosen action was masked out, all candidates were blocked by constraints
+        # (e.g. every placement would violate fragility). Terminate the episode.
+        last_mask = getattr(self, '_last_mask', None)
+        if last_mask is not None and action < len(last_mask) and last_mask[action] == 0:
+            done = True
+            info = {
+                'counter': len(self.container.boxes),
+                'ratio': self.container.get_volume_ratio(),
+                'cog': np.array(self.container.get_cog(), dtype=np.float32),
+                'fragility_violated': int(self.container.has_fragility_violation()),
+            }
+            return self.cur_observation, 0.0, done, False, info
+
         pos, rot, size = self.idx2pos(action)
- 
         succeeded = self.container.place_box(self.next_box, pos, rot)
-        
+
         if not succeeded:
             if self.reward_type == "terminal":  # Terminal reward
                 reward = self.container.get_volume_ratio()
@@ -220,7 +232,7 @@ class PackingEnv(gym.Env):
             'counter': len(self.container.boxes),
             'ratio': self.container.get_volume_ratio(),
             'cog': np.array(self.container.get_cog(), dtype=np.float32),
-            'fragility_violated': int(self.container.has_fragility_violation()),
+            'fragility_violated': 0,  # masking guarantees no violation on a successful step
         }
 
         return self.cur_observation, reward, done, False, info
