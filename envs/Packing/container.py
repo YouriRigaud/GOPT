@@ -312,6 +312,21 @@ class Container(object):
         cz = sum((b.pos_z + b.size_z / 2.0) * b.weight for b in self.boxes) / total_weight
         return (cx, cy, cz)
 
+    def get_imbalance(self) -> float:
+        """Return the normalised CoG imbalance score in [0, 1].
+
+        imb(s) = ||c_t - c_bin||_2 / ||c_bin||_2
+
+        where c_bin = (L/2, W/2, H/2) is the geometric centre of the bin.
+        Returns 0.0 when no boxes are placed (get_cog returns c_bin).
+        """
+        c_t = np.array(self.get_cog())
+        c_bin = self.dimension / 2.0
+        norm_c_bin = np.linalg.norm(c_bin)
+        if norm_c_bin == 0.0:
+            return 0.0
+        return float(np.linalg.norm(c_t - c_bin) / norm_c_bin)
+
     def has_fragility_violation(self) -> bool:
         """Return True if any fragile box has another box resting on top of it."""
         for b_frag in self.boxes:

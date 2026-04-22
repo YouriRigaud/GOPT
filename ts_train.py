@@ -86,6 +86,7 @@ def make_pack_env(args):
         weight_range=list(constraints.weight_range) if constraints else [0.5, 5.0],
         use_fragility=constraints.fragility if constraints else False,
         fragility_probability=constraints.fragility_probability if constraints else 0.3,
+        lambda_cog=constraints.get("lambda_cog", 0.0) if constraints else 0.0,
     )
 
 
@@ -292,14 +293,15 @@ def train(args):
         ratio_std = result["ratio_std"]
         total = result["num"]
         cog = result['cog']
+        imbalance = result['imbalance']
         frag_rate = result['fragility_violated_rate']
         print(f"The result (over {result['n/ep']} episodes): ratio={ratio}, ratio_std={ratio_std}, total={total}")
-        print(f"  avg cog: ({cog[0]:.4f}, {cog[1]:.4f}, {cog[2]:.4f}) | fragility_violation_rate: {frag_rate:.4f}")
+        print(f"  avg cog: ({cog[0]:.4f}, {cog[1]:.4f}, {cog[2]:.4f}) | imbalance: {imbalance:.4f} | fragility_violation_rate: {frag_rate:.4f}")
         append_train_log(
             train_log_path,
             f"final_test episodes={result['n/ep']} ratio={ratio:.6f} "
             f"ratio_std={ratio_std:.6f} total={total:.6f} "
-            f"cog=({cog[0]:.4f},{cog[1]:.4f},{cog[2]:.4f}) fragility_violated_rate={frag_rate:.4f}"
+            f"cog=({cog[0]:.4f},{cog[1]:.4f},{cog[2]:.4f}) imbalance={imbalance:.4f} fragility_violated_rate={frag_rate:.4f}"
         )
         with open(os.path.join(log_path, f"{ratio:.4f}_{ratio_std:.4f}_{total}.txt"), "w") as file:
             file.write(str(train_info).replace("{", "").replace("}", "").replace(", ", "\n"))

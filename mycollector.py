@@ -142,6 +142,7 @@ class PackCollector(Collector):
         episode_ratios = []
         episode_nums = []
         episode_cogs = []
+        episode_imbalances = []
         episode_fragility_violated = []
 
         while True:
@@ -231,6 +232,7 @@ class PackCollector(Collector):
                 episode_ratios.append(self.data.info['ratio'][env_ind_local])
                 episode_nums.append(self.data.info['counter'][env_ind_local])
                 episode_cogs.append(self.data.info['cog'][env_ind_local])
+                episode_imbalances.append(self.data.info['imbalance'][env_ind_local])
                 episode_fragility_violated.append(self.data.info['fragility_violated'][env_ind_local])
                 # now we copy obs_next to obs, but since there might be
                 # finished episodes, we have to reset finished envs first.
@@ -276,10 +278,10 @@ class PackCollector(Collector):
             self.reset_env()
 
         if episode_count > 0:
-            rews, lens, idxs, ratios, nums, cogs, fragility_violated = list(
+            rews, lens, idxs, ratios, nums, cogs, imbalances, fragility_violated = list(
                 map(
                     np.concatenate,
-                    [episode_rews, episode_lens, episode_start_indices, episode_ratios, episode_nums, episode_cogs, episode_fragility_violated]
+                    [episode_rews, episode_lens, episode_start_indices, episode_ratios, episode_nums, episode_cogs, episode_imbalances, episode_fragility_violated]
                 )
             )
             rew_mean, rew_std = rews.mean(), rews.std()
@@ -287,6 +289,7 @@ class PackCollector(Collector):
             ratio_mean, ratio_std = ratios.mean(), ratios.std()
             num_mean, num_std = nums.mean(), nums.std()
             cog_mean = cogs.mean(axis=0)  # (3,) mean over episodes
+            imbalance_mean = float(imbalances.mean())
             fragility_violated_rate = fragility_violated.mean()
         else:
             rews, lens, idxs = np.array([]), np.array([], int), np.array([], int)
@@ -297,6 +300,8 @@ class PackCollector(Collector):
             num_mean = num_std = 0
             cogs = np.zeros((0, 3), dtype=np.float32)
             cog_mean = np.zeros(3, dtype=np.float32)
+            imbalances = np.array([])
+            imbalance_mean = 0.0
             fragility_violated = np.array([])
             fragility_violated_rate = 0.0
 
@@ -318,6 +323,8 @@ class PackCollector(Collector):
             "num_std": num_std,
             "cogs": cogs,
             "cog": cog_mean,
+            "imbalances": imbalances,
+            "imbalance": imbalance_mean,
             "fragility_violated": fragility_violated,
             "fragility_violated_rate": fragility_violated_rate,
         }

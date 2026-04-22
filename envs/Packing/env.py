@@ -29,6 +29,7 @@ class PackingEnv(gym.Env):
         weight_range=(0.5, 5.0),
         use_fragility=False,
         fragility_probability=0.3,
+        lambda_cog: float = 0.0,
         **kwags
     ) -> None:
         self.render_mode = "human" if is_render else None
@@ -42,6 +43,7 @@ class PackingEnv(gym.Env):
         self.k_placement = k_placement
         self.use_weight = use_weight
         self.use_fragility = use_fragility
+        self.lambda_cog = lambda_cog
         if action_scheme == "EMS":
             self.candidates = np.zeros((self.k_placement, 6), dtype=np.int32)  # (x1, y1, z1, x2, y2, H)
         else:
@@ -199,6 +201,7 @@ class PackingEnv(gym.Env):
                 'counter': len(self.container.boxes),
                 'ratio': self.container.get_volume_ratio(),
                 'cog': np.array(self.container.get_cog(), dtype=np.float32),
+                'imbalance': self.container.get_imbalance(),
                 'fragility_violated': int(self.container.has_fragility_violation()),
             }
             return self.cur_observation, 0.0, done, False, info
@@ -218,6 +221,7 @@ class PackingEnv(gym.Env):
                 'counter': len(self.container.boxes),
                 'ratio': self.container.get_volume_ratio(),
                 'cog': np.array(self.container.get_cog(), dtype=np.float32),
+                'imbalance': self.container.get_imbalance(),
                 'fragility_violated': int(self.container.has_fragility_violation()),
             }
             return self.cur_observation, reward, done, False, info
@@ -230,12 +234,16 @@ class PackingEnv(gym.Env):
         if self.reward_type == "terminal":
             reward = 0.01
         else:
-            reward = box_ratio
+            if self.lambda_cog > 0.0:
+                reward = box_ratio - self.lambda_cog * self.container.get_imbalance()
+            else:
+                reward = box_ratio
         done = False
         info = {
             'counter': len(self.container.boxes),
             'ratio': self.container.get_volume_ratio(),
             'cog': np.array(self.container.get_cog(), dtype=np.float32),
+            'imbalance': 0.0,  # only meaningful at episode end; collector reads terminal step only
             'fragility_violated': 0,  # masking guarantees no violation on a successful step
         }
 
