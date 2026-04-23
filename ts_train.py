@@ -87,6 +87,8 @@ def make_pack_env(args):
         use_fragility=constraints.fragility if constraints else False,
         fragility_probability=constraints.fragility_probability if constraints else 0.3,
         lambda_cog=constraints.get("lambda_cog", 0.0) if constraints else 0.0,
+        observe_cog=constraints.get("observe_cog", False) if constraints else False,
+        observe_fragility=constraints.get("observe_fragility", False) if constraints else False,
     )
 
 
@@ -107,17 +109,21 @@ def make_envs(args):
 
 
 def build_net(args, device):
+    constraints = args.get("constraints", None)
+    observe_cog = constraints.get("observe_cog", False) if constraints else False
     feature_net = model.ShareNet(
-        k_placement=args.env.k_placement, 
-        box_max_size=args.env.box_big, 
-        container_size=args.env.container_size, 
-        embed_size=args.model.embed_dim, 
+        k_placement=args.env.k_placement,
+        box_max_size=args.env.box_big,
+        container_size=args.env.container_size,
+        embed_size=args.model.embed_dim,
         num_layers=args.model.num_layers,
         forward_expansion=args.model.forward_expansion,
         heads=args.model.heads,
         dropout=args.model.dropout,
         device=device,
-        place_gen=args.env.scheme
+        place_gen=args.env.scheme,
+        observe_cog=observe_cog,
+        observe_fragility=constraints.get("observe_fragility", False) if constraints else False,
     )
 
     actor = model.ActorHead(

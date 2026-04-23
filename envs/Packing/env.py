@@ -30,6 +30,8 @@ class PackingEnv(gym.Env):
         use_fragility=False,
         fragility_probability=0.3,
         lambda_cog: float = 0.0,
+        observe_cog: bool = False,
+        observe_fragility: bool = False,
         **kwags
     ) -> None:
         self.render_mode = "human" if is_render else None
@@ -44,6 +46,8 @@ class PackingEnv(gym.Env):
         self.use_weight = use_weight
         self.use_fragility = use_fragility
         self.lambda_cog = lambda_cog
+        self.observe_cog = observe_cog
+        self.observe_fragility = observe_fragility
         if action_scheme == "EMS":
             self.candidates = np.zeros((self.k_placement, 6), dtype=np.int32)  # (x1, y1, z1, x2, y2, H)
         else:
@@ -91,6 +95,10 @@ class PackingEnv(gym.Env):
     def _set_space(self) -> None:
         obs_len = self.area + 6  # heightmap + next item (l,w,h) × 2 rotations
         obs_len += self.k_placement * 6
+        if self.observe_cog:
+            obs_len += 4  # [imbalance, cx, cy, cz]
+        if self.observe_fragility:
+            obs_len += 1 + self.area  # [fragility_item, fragility_map (L×W)]
         self.action_space = spaces.Discrete(self.k_placement)
         self.observation_space = spaces.Dict(
             {
@@ -127,11 +135,21 @@ class PackingEnv(gym.Env):
         size.extend([size[1], size[0], size[2]])
 
         # Concatenate all observation components
-        obs = np.concatenate((
+        components = [
             hmap.reshape(-1),
             np.array(size).reshape(-1),
-            self.candidates.reshape(-1)
-        ))
+            self.candidates.reshape(-1),
+        ]
+        if self.observe_cog:
+            imb = self.container.get_imbalance()
+            cog = np.array(self.container.get_cog(), dtype=np.float32)
+            components.append(np.array([imb, cog[0], cog[1], cog[2]], dtype=np.float32))
+        if self.observe_fragility:
+            fragility_item = np.array([float(self.next_box[4]) if len(self.next_box) > 4 else 0.0], dtype=np.float32)
+            fragility_map = self.container.get_fragility_map().reshape(-1)
+            components.append(fragility_item)
+            components.append(fragility_map)
+        obs = np.concatenate(components)
 
         mask = mask.reshape(-1)
         self._last_mask = mask  # cached for masked-action detection in step()

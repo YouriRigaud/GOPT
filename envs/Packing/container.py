@@ -327,6 +327,21 @@ class Container(object):
             return 0.0
         return float(np.linalg.norm(c_t - c_bin) / norm_c_bin)
 
+    def get_fragility_map(self) -> np.ndarray:
+        """Return an L×W binary map where cell (x,y)=1 if a fragile item's top
+        surface sits at the current heightmap level, i.e. stacking there is blocked."""
+        fmap = np.zeros(self.dimension[:2], dtype=np.float32)
+        for b in self.boxes:
+            if b.fragility == 0:
+                continue
+            top_z = int(b.pos_z) + int(b.size_z)
+            x0, x1 = int(b.pos_x), int(b.pos_x) + int(b.size_x)
+            y0, y1 = int(b.pos_y), int(b.pos_y) + int(b.size_y)
+            # mark cells where the heightmap equals this box's top — those are blocked
+            region = self.heightmap[x0:x1, y0:y1]
+            fmap[x0:x1, y0:y1] = np.where(region == top_z, 1.0, fmap[x0:x1, y0:y1])
+        return fmap
+
     def has_fragility_violation(self) -> bool:
         """Return True if any fragile box has another box resting on top of it."""
         for b_frag in self.boxes:

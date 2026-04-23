@@ -43,6 +43,8 @@ def test(args):
         use_fragility=constraints.fragility if constraints else False,
         fragility_probability=constraints.fragility_probability if constraints else 0.3,
         lambda_cog=constraints.get("lambda_cog", 0.0) if constraints else 0.0,
+        observe_cog=constraints.get("observe_cog", False) if constraints else False,
+        observe_fragility=constraints.get("observe_fragility", False) if constraints else False,
     )
 
     # network
