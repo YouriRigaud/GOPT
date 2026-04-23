@@ -230,6 +230,8 @@ class ShareNet(nn.Module):
         dropout: float = 0,
         device: Union[str, int, torch.device] = "cpu",
         place_gen: str = "EMS",
+        observe_cog: bool = False,
+        observe_fragility: bool = False,
     ) -> None:
         super().__init__()
 
@@ -237,13 +239,15 @@ class ShareNet(nn.Module):
         self.k_placement = k_placement
         self.container_size = container_size
         self.place_gen = place_gen
+        self.observe_cog = observe_cog
+        self.observe_fragility = observe_fragility
         if place_gen == "EMS":
             input_size = 6
         else:
             input_size = 3
 
         self.factor = 1 / max(container_size)
-        
+
         self.item_encoder = nn.Sequential(
             init_(nn.Linear(3, 32)),
             nn.LeakyReLU(),
@@ -255,7 +259,23 @@ class ShareNet(nn.Module):
             nn.LeakyReLU(),
             init_(nn.Linear(32, embed_size)),
         )
-        
+
+        if observe_cog:
+            self.cog_proj = nn.Sequential(
+                init_(nn.Linear(4, embed_size)),
+                nn.LeakyReLU(),
+            )
+
+        if observe_fragility:
+            self.fragility_item_proj = nn.Sequential(
+                init_(nn.Linear(1, embed_size)),
+                nn.LeakyReLU(),
+            )
+            self.fragility_map_proj = nn.Sequential(
+                init_(nn.Linear(container_size[0] * container_size[1], embed_size)),
+                nn.LeakyReLU(),
+            )
+
         self.backbone = nn.ModuleList(
             [
                 EncoderBlock(
@@ -279,10 +299,21 @@ class ShareNet(nn.Module):
         if not isinstance(mask, torch.Tensor) and mask is not None:
             mask = torch.as_tensor(mask, dtype=torch.float32, device=self.device)  # (batch_size, k_placement)
         
-        obs_hm, obs_next, obs_placements = obs2input(obs, self.container_size, self.place_gen)
+        obs_hm, obs_next, obs_placements, obs_cog, obs_frag_item, obs_frag_map = obs2input(
+            obs, self.container_size, self.place_gen, self.observe_cog, self.observe_fragility
+        )
 
-        item_embedding = self.item_encoder(obs_next)  # (batch_size, 2, emded_size)
-        placement_embedding = self.placement_encoder(obs_placements)  # (batch_size, k_placement, emded_size)
+        item_embedding = self.item_encoder(obs_next)  # (batch_size, 2, embed_size)
+        placement_embedding = self.placement_encoder(obs_placements)  # (batch_size, k_placement, embed_size)
+
+        if self.observe_cog and obs_cog is not None:
+            # inject CoG context into item embedding: broadcast (batch, 1, embed) over 2 rotations
+            item_embedding = item_embedding + self.cog_proj(obs_cog).unsqueeze(1)
+
+        if self.observe_fragility and obs_frag_item is not None:
+            # inject fragility of the current item and the container fragility map
+            item_embedding = item_embedding + self.fragility_item_proj(obs_frag_item).unsqueeze(1)
+            item_embedding = item_embedding + self.fragility_map_proj(obs_frag_map).unsqueeze(1)
 
         for layer in self.backbone:
             item_embedding, placement_embedding = layer(item_embedding, placement_embedding, mask)
@@ -291,31 +322,57 @@ class ShareNet(nn.Module):
 
 
 def obs2input(
-    obs: torch.Tensor, 
+    obs: torch.Tensor,
     container_size: Sequence[int],
     place_gen: str = "EMS",
-) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-    """ 
-        convert obsversation to input of the network
+    observe_cog: bool = False,
+    observe_fragility: bool = False,
+) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, Optional[torch.Tensor], Optional[torch.Tensor], Optional[torch.Tensor]]:
+    """
+        convert observation to input of the network
 
     Returns:
-        hm:         (batch, 1, L, W)
-        next_size:  (batch, 2, 3)
-        placements: (batch, k_placement, 6)
+        hm:               (batch, 1, L, W)
+        next_size:        (batch, 2, 3)
+        placements:       (batch, k_placement, 6)
+        cog_features:     (batch, 4) = [imb, cx, cy, cz]  or None
+        frag_item:        (batch, 1)                        or None
+        frag_map:         (batch, L*W)                      or None
     """
     batch_size = obs.shape[0]
-    hm = obs[:, :container_size[0]*container_size[1]].reshape((batch_size, 1, container_size[0], container_size[1]))
-    next_size = obs[:, container_size[0]*container_size[1]:container_size[0]*container_size[1] + 6]
-    # [[l, w, h], [w, l, h]]
-    next_size = next_size.reshape((batch_size, 2, 3))
-    
-    if place_gen == "EMS":
-        # (x_1, y_1, z_1, x_2, y_2, H)
-        placements = obs[:, container_size[0]*container_size[1] + 6:].reshape((batch_size, -1, 6))
-    else:
-        placements = obs[:, container_size[0]*container_size[1] + 6:].reshape((batch_size, -1, 3))
+    area = container_size[0] * container_size[1]
+    hm = obs[:, :area].reshape((batch_size, 1, container_size[0], container_size[1]))
+    next_size = obs[:, area:area + 6].reshape((batch_size, 2, 3))
 
-    return hm, next_size, placements
+    # compute tail size to slice placements correctly
+    tail = 0
+    if observe_cog:
+        tail += 4
+    if observe_fragility:
+        tail += 1 + area
+
+    placement_dims = 6 if place_gen == "EMS" else 3
+    if tail > 0:
+        placements = obs[:, area + 6:-tail].reshape((batch_size, -1, placement_dims))
+        tail_obs = obs[:, -tail:]
+    else:
+        placements = obs[:, area + 6:].reshape((batch_size, -1, placement_dims))
+        tail_obs = None
+
+    # parse tail
+    cog_features = None
+    frag_item = None
+    frag_map = None
+    if tail_obs is not None:
+        cursor = 0
+        if observe_cog:
+            cog_features = tail_obs[:, cursor:cursor + 4]
+            cursor += 4
+        if observe_fragility:
+            frag_item = tail_obs[:, cursor:cursor + 1]
+            frag_map = tail_obs[:, cursor + 1:cursor + 1 + area]
+
+    return hm, next_size, placements, cog_features, frag_item, frag_map
 
 
 def init(module, weight_init, bias_init, gain=1):

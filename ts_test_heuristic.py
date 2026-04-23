@@ -82,8 +82,8 @@ def _onlinebph_to_action(bph: OnlineBPH, env, obs) -> int:
     mask       = _get_mask(obs)                          # (k_placement,)
     k          = env.k_placement
     candidates = _get_candidates(env)                    # (k, 3)
-    item_dims  = tuple(float(x) for x in env.next_box[:3])
-    l, w, h    = item_dims
+    item_dims  = tuple(float(x) for x in env.next_box[:5])  # l, w, h, weight, fragility
+    l, w, h    = item_dims[:3]
     L, W, H    = (float(x) for x in env.bin_size)
 
     # --- Step 1: ask OnlineBPH for its best placement --------------------

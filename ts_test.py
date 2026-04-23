@@ -42,6 +42,9 @@ def test(args):
         weight_range=list(constraints.weight_range) if constraints else [0.5, 5.0],
         use_fragility=constraints.fragility if constraints else False,
         fragility_probability=constraints.fragility_probability if constraints else 0.3,
+        lambda_cog=constraints.get("lambda_cog", 0.0) if constraints else 0.0,
+        observe_cog=constraints.get("observe_cog", False) if constraints else False,
+        observe_fragility=constraints.get("observe_fragility", False) if constraints else False,
     )
 
     # network
@@ -83,9 +86,11 @@ def test(args):
     has_cog = result['cogs'].shape[0] > 0
     for i in range(args.test_episode):
         cog = result['cogs'][i] if has_cog else None
+        imb = result['imbalances'][i] if has_cog else '-'
         frag = int(result['fragility_violated'][i]) if has_cog else '-'
         cog_str = f"cog=({cog[0]:.2f},{cog[1]:.2f},{cog[2]:.2f})" if cog is not None else ""
-        print(f"episode {i+1}\t => \tratio: {result['ratios'][i]:.4f} \t| total: {result['nums'][i]} \t| {cog_str} \t| fragility_violated: {frag}")
+        imb_str = f"imbalance: {imb:.4f}" if has_cog else "imbalance: -"
+        print(f"episode {i+1}\t => \tratio: {result['ratios'][i]:.4f} \t| total: {result['nums'][i]} \t| {cog_str} \t| {imb_str} \t| fragility_violated: {frag}")
     print('All cases have been done!')
     print('----------------------------------------------')
     print('average space utilization: %.4f'%(result['ratio']))
@@ -94,6 +99,7 @@ def test(args):
     if has_cog:
         cog = result['cog']
         print(f"average cog: ({cog[0]:.4f}, {cog[1]:.4f}, {cog[2]:.4f})")
+        print(f"average imbalance: {result['imbalance']:.4f}")
         print(f"fragility violation rate: {result['fragility_violated_rate']:.4f}")
 
 
