@@ -47,9 +47,3 @@ model:
   num_layers: 3
   forward_expansion: 2
   dropout: 0
-
-constraints:
-  weight: true                  # enable per-item weight
-  weight_range: [0.5, 5.0]     # [min, max] uniform weight sampling
-  fragility: true               # enable per-item fragility (binary: 0=normal, 1=fragile)
-  fragility_probability: 0.3   # probability that a generated item is fragile
