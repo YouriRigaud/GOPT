@@ -1,5 +1,4 @@
-# smoke-test configuration for CPU-only setup verification
-# Now with fragility + weight constraints enabled for testing
+# local configuration with constraints enabled
 
 seed: 5
 cuda_deterministic: True
@@ -17,12 +16,12 @@ env:
 train:
   algo: PPO
   clip_param: 0.3
-  num_processes: 1
-  num_steps: 2
-  epoch: 5
+  num_processes: 4
+  num_steps: 4
+  epoch: 50
   last_epoch: 0
-  batch_size: 32
-  step_per_epoch: 200
+  batch_size: 64
+  step_per_epoch: 2000
   repeat_per_collect: 1
   gae_lambda: 0.96
   reward_type:
@@ -31,7 +30,7 @@ train:
 opt:
   optimizer: Adam
   lr: 7e-5
-  lr_decay: False
+  lr_decay: True
   eps: 1e-5
   alpha: 0.99
 
@@ -49,9 +48,9 @@ model:
 
 constraints:
   weight: true
-  weight_range: [0.5, 5.0]
-  fragility: false
+  weight_range: [1.0, 5.0]
+  fragility: true
   fragility_probability: 0.3
-  lambda_cog: 0.0              # CoG reward shaping coefficient (0.0 = disabled)
-  observe_cog: false           # add [imbalance, cx, cy, cz] to observation
-  observe_fragility: false     # add [fragility_item, fragility_map] to observation
+  lambda_cog: 0.01              # CoG reward shaping coefficient (0.0 = disabled)
+  observe_cog: true             # add [imbalance, cx, cy, cz] to observation
+  observe_fragility: true       # add [fragility_item, fragility_map] to observation
