@@ -1,0 +1,12 @@
+'duration': '1218.34s'
+'train_time/model': '814.28s'
+'test_step': 24132
+'test_episode': 1010
+'test_time': '91.57s'
+'test_speed': '263.53 step/s'
+'best_reward': 0.21023738094171035
+'best_result': '0.21 ± 0.12'
+'train_step': 200000
+'train_episode': 8318
+'train_time/collector': '312.49s'
+'train_speed': '177.50 step/s'
