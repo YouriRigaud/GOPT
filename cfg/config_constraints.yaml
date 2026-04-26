@@ -50,6 +50,10 @@ model:
 
 constraints:
   weight: true                  # enable per-item weight
-  weight_range: [0.5, 5.0]     # [min, max] uniform weight sampling
-  fragility: true               # enable per-item fragility (binary: 0=normal, 1=fragile)
+  weight_range: [1.0, 5.0]     # [min, max] uniform weight sampling
+  fragility: false               # enable per-item fragility (binary: 0=normal, 1=fragile)
   fragility_probability: 0.3   # probability that a generated item is fragile
+  lambda_cog: 0.1              # ← vary this: 0.0 / 0.01 / 0.03 / 0.05
+  observe_cog: true            # always on for tuning
+  observe_fragility: false     # disabled — isolate CoG tuning
+

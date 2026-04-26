@@ -1,0 +1,59 @@
+# configuration file for training
+# Extended with fragility and weight constraints
+
+seed: 5
+cuda_deterministic: True
+log_interval: 10               # How often to print training logs
+
+env:
+  id: OnlinePack-v1            # env name OnlinePack-v1, PCT-v0
+  scheme: EMS                  # the scheme of generating candidate map: heightmap, EP, FC
+  rot: True
+  box_type: random              # random, cut
+  container_size: [10, 10, 10]
+  step:
+  k_placement: 80              # number of candidate placements
+
+
+train:
+  algo: PPO
+  clip_param: 0.3
+  num_processes: 128    # the number of subprogresses, if debug, set to 1
+  num_steps: 5
+  epoch: 1000
+  last_epoch: 200
+  batch_size: 128
+  step_per_epoch: 40000        # 2**15
+  repeat_per_collect: 1
+  gae_lambda: 0.96
+  reward_type:            # optional: "terminal", None
+  gamma: 1                  # discount factor for rewards (default: 1)
+
+opt:  # optimizer
+  optimizer: Adam              # optimizer: Adam, RMSprop
+  lr: 7e-5                     # learning rate (RMSprop7e-4, 1e-6, Adam7e-5)
+  lr_decay: True               # use a linear schedule on the learning rate
+  eps: 1e-5                    # epsilon (default: 1e-5)
+  alpha: 0.99                  # RMSprop alpha (default: 0.99)
+
+loss:
+  entropy: 0.001               # entropy term coefficient (default: 0.01)
+  value: 0.5                   # value loss coefficient (default: 0.5)
+
+model:
+  padding_mask: False                   # padding mask
+  embed_dim: 128
+  heads: 1
+  num_layers: 3
+  forward_expansion: 2
+  dropout: 0
+
+constraints:
+  weight: true                  # enable per-item weight
+  weight_range: [1.0, 5.0]     # [min, max] uniform weight sampling
+  fragility: false               # enable per-item fragility (binary: 0=normal, 1=fragile)
+  fragility_probability: 0.3   # probability that a generated item is fragile
+  lambda_cog: 0.1              # ← vary this: 0.0 / 0.01 / 0.03 / 0.05
+  observe_cog: true            # always on for tuning
+  observe_fragility: false     # disabled — isolate CoG tuning
+

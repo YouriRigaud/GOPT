@@ -1,0 +1,61 @@
+# Lambda CoG tuning config
+# Isolates the lambda_cog effect: fragility disabled, observe_cog always on.
+# Run with different lambda_cog values (0.0, 0.01, 0.03, 0.05, 0.1) and compare
+# final_test imbalance vs ratio.
+#
+# Usage: python ts_train.py --config cfg/lambda_cog_tuning.yaml --no-cuda
+
+seed: 5
+cuda_deterministic: True
+log_interval: 10
+
+env:
+  id: OnlinePack-v1
+  scheme: EMS
+  rot: True
+  box_type: random
+  container_size: [10, 10, 10]
+  step:
+  k_placement: 80
+
+train:
+  algo: PPO
+  clip_param: 0.3
+  num_processes: 4
+  num_steps: 4
+  epoch: 100
+  last_epoch: 0
+  batch_size: 64
+  step_per_epoch: 2000
+  repeat_per_collect: 1
+  gae_lambda: 0.96
+  reward_type:
+  gamma: 1
+
+opt:
+  optimizer: Adam
+  lr: 7e-5
+  lr_decay: True
+  eps: 1e-5
+  alpha: 0.99
+
+loss:
+  entropy: 0.001
+  value: 0.5
+
+model:
+  padding_mask: False
+  embed_dim: 128
+  heads: 1
+  num_layers: 3
+  forward_expansion: 2
+  dropout: 0
+
+constraints:
+  weight: true
+  weight_range: [1.0, 5.0]
+  fragility: false              # disabled — isolate CoG tuning
+  fragility_probability: 0.3
+  lambda_cog: 0.07              # ← vary this: 0.0 / 0.01 / 0.03 / 0.05
+  observe_cog: true            # always on for tuning
+  observe_fragility: false     # disabled — isolate CoG tuning
