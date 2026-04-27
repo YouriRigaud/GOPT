@@ -161,6 +161,7 @@ def run_episode(env, kb: int, ke: int) -> dict:
 
     last_ratio     = 0.0
     last_cog       = None
+    last_imbalance = None
     last_fragility = None
     terminated     = False
     truncated      = False
@@ -172,13 +173,19 @@ def run_episode(env, kb: int, ke: int) -> dict:
         last_ratio     = float(info.get("ratio",              last_ratio))
         last_cog       = info.get("cog",                      last_cog)
         last_fragility = info.get("fragility_violated",       last_fragility)
+        if info.get("imbalance", 0.0) > 0.0:
+            last_imbalance = float(info.get("imbalance"))
 
     num_packed = int(info.get("counter", 0))
+    # imbalance is only meaningful at episode end
+    if last_imbalance is None:
+        last_imbalance = float(info.get("imbalance", 0.0))
 
     return {
         "ratio":              last_ratio,
         "num":                num_packed,
         "cog":                np.asarray(last_cog, dtype=float) if last_cog is not None else None,
+        "imbalance":          last_imbalance,
         "fragility_violated": bool(last_fragility) if last_fragility is not None else None,
     }
 
@@ -214,6 +221,7 @@ def test(args):
     ratios      = []
     nums        = []
     cogs        = []
+    imbalances  = []
     fragilites  = []
 
     t0 = time.time()
@@ -225,10 +233,12 @@ def test(args):
         nums.append(result["num"])
 
         cog  = result["cog"]
+        imb  = result["imbalance"]
         frag = result["fragility_violated"]
 
         has_cog = cog is not None
         cog_str = f"cog=({cog[0]:.2f},{cog[1]:.2f},{cog[2]:.2f})" if has_cog else ""
+        imb_str = f"imbalance: {imb:.4f}" if imb is not None else "imbalance: -"
         frag_str = str(int(frag)) if frag is not None else "-"
 
         print(
@@ -236,11 +246,14 @@ def test(args):
             f"ratio: {result['ratio']:.4f} \t| "
             f"total: {result['num']} \t| "
             f"{cog_str} \t| "
+            f"{imb_str} \t| "
             f"fragility_violated: {frag_str}"
         )
 
         if has_cog:
             cogs.append(cog)
+        if imb is not None:
+            imbalances.append(imb)
         if frag is not None:
             fragilites.append(int(frag))
 
@@ -260,6 +273,9 @@ def test(args):
     if cogs:
         cog_mean = np.mean(cogs, axis=0)
         print(f"average cog: ({cog_mean[0]:.4f}, {cog_mean[1]:.4f}, {cog_mean[2]:.4f})")
+
+    if imbalances:
+        print(f"average imbalance        : {np.mean(imbalances):.4f}")
 
     if fragilites:
         viol_rate = np.mean(fragilites)
