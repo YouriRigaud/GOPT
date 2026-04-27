@@ -56,6 +56,6 @@ constraints:
   weight_range: [1.0, 5.0]
   fragility: false              # disabled — isolate CoG tuning
   fragility_probability: 0.3
-  lambda_cog: 0.09              # ← vary this: 0.0 / 0.01 / 0.03 / 0.05
+  lambda_cog: 0.12              # ← vary this: 0.0 / 0.01 / 0.03 / 0.05
   observe_cog: true            # always on for tuning
   observe_fragility: false     # disabled — isolate CoG tuning

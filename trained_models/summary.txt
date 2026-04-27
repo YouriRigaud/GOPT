@@ -15,9 +15,9 @@ CoG + fragility      | all constraints combined           | 0.3845 | 0.1846    |
 
 Directories:
   base_config        → trained_models/base_config
-  CoG only           → trained_models/OnlinePack-v1_..._2026.04.25-12-31-05
-  fragility only     → trained_models/OnlinePack-v1_..._2026.04.26-18-15-39
-  CoG + fragility    → trained_models/OnlinePack-v1_..._2026.04.25-22-19-26
+  CoG only           → trained_models/cog_only
+  fragility only     → trained_models/fragility_only
+  CoG + fragility    → trained_models/cog_and_fragility
 
 --------------------------------------------------------
 KEY FINDINGS
