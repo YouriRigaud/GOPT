@@ -1,0 +1,72 @@
+# Bin-100 generalization test config
+# Tests a model trained on Bin-10 on a 100x100x100 container.
+#
+# Box sizes scale automatically from container_size:
+#   box_small = 100/10 = 10,  box_big = 100/2 = 50,  step = 10
+#   → boxes [10..50] in steps of 10 (proportionally same as Bin-10)
+#
+# Normalization is equivalent: items scaled by 1/100 → same [0.1-0.5] range.
+#
+# IMPORTANT: observe_fragility MUST be false — fragility_map_proj is
+# Linear(L*W → embed), hardcoded to the training bin size (100 for Bin-10).
+# Bin-100 would require Linear(10000 → embed) → weight mismatch → crash.
+#
+# Usage (cog_only checkpoint):
+#   python ts_test.py --config cfg/test_bin100.yaml \
+#                     --no-cuda --ckp trained_models/cog_only/policy_step_best.pth \
+#                     --test-episode 100
+
+seed: 5
+cuda_deterministic: True
+log_interval: 10
+
+env:
+  id: OnlinePack-v1
+  scheme: EMS
+  rot: True
+  box_type: random
+  container_size: [100, 100, 100]   # ← Bin-100
+  step:
+  k_placement: 80
+
+train:
+  algo: PPO
+  clip_param: 0.3
+  num_processes: 1
+  num_steps: 4
+  epoch: 1000
+  last_epoch: 200
+  batch_size: 128
+  step_per_epoch: 40000
+  repeat_per_collect: 1
+  gae_lambda: 0.96
+  reward_type:
+  gamma: 1
+
+opt:
+  optimizer: Adam
+  lr: 7e-5
+  lr_decay: True
+  eps: 1e-5
+  alpha: 0.99
+
+loss:
+  entropy: 0.001
+  value: 0.5
+
+model:
+  padding_mask: False
+  embed_dim: 128
+  heads: 1
+  num_layers: 3
+  forward_expansion: 2
+  dropout: 0
+
+constraints:
+  weight: true
+  weight_range: [1.0, 5.0]
+  fragility: false
+  fragility_probability: 0.3
+  lambda_cog: 0.1
+  observe_cog: true              # must match training config
+  observe_fragility: false       # MUST be false — Linear(100→128) can't handle Bin-100
