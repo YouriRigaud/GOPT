@@ -1,10 +1,10 @@
-# GOPT Setup Guide (Python 3.9 + `venv` + CPU smoke run)
+# GOPT Setup Guide (Python 3.9/3.10 + `venv` + CPU smoke run)
 
 This guide shows the exact process to get this repo working without Conda, using a standard Python virtual environment.
 
 It targets:
 
-- Python `3.9`
+- Python `3.9` or `3.10`
 - CPU only
 - no rendering
 - a short smoke-training run
@@ -19,7 +19,7 @@ It does **not** cover:
 
 You need:
 
-- Python `3.9.x`
+- Python `3.9/10.x`
 - `pip`
 - a shell
 

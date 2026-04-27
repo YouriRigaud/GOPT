@@ -1,3 +1,14 @@
+## Projet INF8225
+
+`SETUP.md` contient les instructions pour lancer le projet.
+
+`cfg` contient les differentes config d'entrainements/tests
+
+`trained_models` contient tous les modeles entraines. Ils peuvent etre testes via ts_test
+
+
+# GOPT
+
 <h2 align="center">
   <b>GOPT: Generalizable Online 3D Bin Packing via Transformer-based Deep Reinforcement Learning</b>
 
