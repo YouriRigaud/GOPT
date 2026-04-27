@@ -1,0 +1,60 @@
+# Fragility-only ablation config
+# Goal: isolate the cost of fragility constraint alone, without CoG.
+# Compare against base_config (ratio=0.752, imbalance=0.148) and
+# cog_only (ratio=0.625, imbalance=0.077) to understand how much
+# fragility alone explains the CoG+fragility collapse (ratio=0.385).
+
+seed: 5
+cuda_deterministic: True
+log_interval: 10
+
+env:
+  id: OnlinePack-v1
+  scheme: EMS
+  rot: True
+  box_type: random
+  container_size: [10, 10, 10]
+  step:
+  k_placement: 80
+
+train:
+  algo: PPO
+  clip_param: 0.3
+  num_processes: 128
+  num_steps: 5
+  epoch: 1000
+  last_epoch: 200
+  batch_size: 128
+  step_per_epoch: 40000
+  repeat_per_collect: 1
+  gae_lambda: 0.96
+  reward_type:
+  gamma: 1
+
+opt:
+  optimizer: Adam
+  lr: 7e-5
+  lr_decay: True
+  eps: 1e-5
+  alpha: 0.99
+
+loss:
+  entropy: 0.001
+  value: 0.5
+
+model:
+  padding_mask: False
+  embed_dim: 128
+  heads: 1
+  num_layers: 3
+  forward_expansion: 2
+  dropout: 0
+
+constraints:
+  weight: false                  # disabled — isolate fragility only
+  weight_range: [1.0, 5.0]
+  fragility: true                # enabled
+  fragility_probability: 0.3
+  lambda_cog: 0.0               # disabled — no CoG reward shaping
+  observe_cog: false            # disabled — no CoG in observation
+  observe_fragility: true       # enabled — agent can see fragility state
